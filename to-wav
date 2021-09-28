@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+USAGE="Usage: `basename $0` input"
+
+if [ $# != 1 ]; then
+    echo $USAGE >&2
+    exit 1
+fi
+
+file=$(realpath $1)
+
+docker run \
+  --rm \
+  -v $(dirname ${file}):/sound \
+  -v ${file}:/sound/in \
+  -u $(id -u):$(id -g) \
+  --entrypoint ffmpeg \
+  deluan/navidrome:latest \
+    -i /sound/in \
+    /sound/$(basename ${file}).wav
