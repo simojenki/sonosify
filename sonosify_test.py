@@ -128,8 +128,8 @@ def sonosify(i):
         -u {uid}:{gid} \
         --entrypoint /bin/sonosify \
         deluan/navidrome:latest \
-            -i /sounds/{i} \
-            -o /sounds/{o}""".format(
+            /sounds/{i} \
+            /sounds/{o}""".format(
                 sounds=i.path.dirname,
                 sonosify=SONOSIFY,
                 uid=os.getuid(),
@@ -159,7 +159,7 @@ def test_mp3_file_should_have_tags_removed(mp3):
 
     assert result.path.check()
     new_tags = result.tags()
-    assert new_tags["artist"] == ""
-    # assert new_tags["title"] == "sonosify-title"
-    # assert new_tags["track"] == "sonosify-track"
-    # assert new_tags["album"] == "sonosify-album"
+    assert "artist" not in new_tags
+    assert "title" not in new_tags
+    assert "track" not in new_tags
+    assert "album" not in new_tags

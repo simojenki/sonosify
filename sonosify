@@ -14,4 +14,4 @@ O=$2
     echo "Input file $I does not exist" >&2 && \
     exit 1
 
-cat $I > $O
+ffmpeg -i "${I}" -map 0:a -c:a copy -map_metadata -1 -f mp3 "${O}"
