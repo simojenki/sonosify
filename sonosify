@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+
+USAGE="Usage: `basename $0` input output"
+
+if [ $# -ne 2 ]; then
+    echo $USAGE >&2
+    exit 1
+fi
+
+I=$1
+O=$2
+
+[ ! -e $I ] && \
+    echo "Input file $I does not exist" >&2 && \
+    exit 1
+
+cat $I > $O
