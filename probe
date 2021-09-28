@@ -15,6 +15,8 @@ docker run \
   -u $(id -u):$(id -g) \
   --entrypoint ffprobe \
   deluan/navidrome:latest \
+    -select_streams 0 \
     -show_streams \
     -show_format \
+    -print_format json \
     /in

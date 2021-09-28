@@ -22,15 +22,15 @@ O=$2
     echo "Input file $I does not exist" >&2 && \
     exit 1
 
-streams=$(ffprobe -show_streams "${I}")
+stream0=$(ffprobe -select_streams 0 -show_streams "${I}")
 
-stream_count=$(echo "${streams}" | grep "^index=" | wc -l)
-if [ "${stream_count}" != "1" ]; then
-    echo "Expected 1 stream in ${I}, found ${stream_count}" >&2
+codec_type=$(echo "${stream0}" | grep "^codec_type=" | cut -d = -f 2)
+if [ "${codec_type}" != "audio" ]; then
+    echo "Expected stream 0 to be audio, but is ${codec_type}" >&2
     exit 1
 fi
 
-codec_name=$(echo "${streams}" | grep "^codec_name=" | cut -d = -f 2)
+codec_name=$(echo "${stream0}" | grep "^codec_name=" | cut -d = -f 2)
 
 case "${codec_name}" in
     mp3)
@@ -44,11 +44,22 @@ case "${codec_name}" in
             "${O}"
     ;;
     flac)
-        log "codec flac"
+        sample_fmt=$(echo "${stream0}" | grep "^sample_fmt=" | cut -d = -f 2)
+        sample_rate=$(echo "${stream0}" | grep "^sample_rate=" | cut -d = -f 2)
+
+        out_fmt="${sample_fmt}"
+        out_rate="44100"
+        case "${sample_rate}" in
+            96000)
+                out_rate="48000"
+            ;;
+        esac
+
+        log "codec flac@${sample_fmt}:${sample_rate} -> flac@${out_fmt}:${out_rate}"
+
         ffmpeg \
             -i "${I}" \
-            -map 0:a \
-            -c:a copy \
+            -af "aformat=${out_fmt}:${out_rate}" \
             -map_metadata -1 \
             -f flac \
             "${O}"

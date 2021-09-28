@@ -53,6 +53,20 @@ class AudioFile:
             )
         return json.loads(out)["format"]["tags"]
 
+
+    def stream0(self):
+        out = docker(
+            docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
+            entrypoint="ffprobe",
+            args="""-select_streams 0 \
+                    -show_streams \
+                    -print_format json \
+                    /sounds/{i}""".format(
+                        i=self.path.basename
+                    )
+            )
+        return json.loads(out)["streams"][0]
+
     
     def to_mp3(self):
         new_file_name = "{uuid}{ext}".format(uuid = uuid(), ext = ".mp3")
@@ -71,15 +85,16 @@ class AudioFile:
         return AudioFile(self.path.dirpath(new_file_name)) 
 
 
-    def to_flac(self):
-        new_file_name = "{uuid}{ext}".format(uuid = uuid(), ext = ".mp3")
+    def to_flac(self, aformat="s16:44100"):
+        new_file_name = "{uuid}{ext}".format(uuid=uuid(), ext=".flac")
         docker(
             docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
             entrypoint="ffmpeg",
             args="""-i /sounds/{i} \
-                -af aformat=s16:44100 \
+                -af aformat={aformat} \
                 /sounds/{o}""".format(
                     i=self.path.basename, 
+                    aformat=aformat,
                     o=new_file_name
                 )
         )
@@ -87,7 +102,7 @@ class AudioFile:
 
     
     def to_raw_wav(self):
-        new_file_name = "{uuid}{ext}".format(uuid = uuid(), ext = ".wav")
+        new_file_name = "{uuid}{ext}".format(uuid=uuid(), ext=".wav")
         docker(
             docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
             entrypoint="ffmpeg",
@@ -101,7 +116,7 @@ class AudioFile:
         return AudioFile(self.path.dirpath(new_file_name)) 
 
 
-    def with_tags(self, artist="", title="", track="", album=""):
+    def with_tags(self, artist="some-artist", title="some-title", track="some-track", album="some-album"):
         new_file_name = "{name}{ext}".format(name = uuid(), ext = self.path.ext)
         docker(
             docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
@@ -157,8 +172,6 @@ def wav(tmp_sounds):
     return AudioFile(tmp_sounds.join(filename))
 
 
-
-
 def sonosify(i):
     new_file_name = "{name}{ext}".format(name = uuid(), ext = i.path.ext)
     run("""docker run \
@@ -204,15 +217,20 @@ def test_mp3_file_should_have_tags_removed(wav):
     assert result.to_raw_wav().md5() == original_md5
 
     new_tags = result.tags()
+    assert len(new_tags) == 1
     assert "artist" not in new_tags
     assert "title" not in new_tags
     assert "track" not in new_tags
     assert "album" not in new_tags
 
 
+def test_44k_flac_file_should_have_tags_removed(wav):
+    flac = wav.to_flac(aformat="s16:44100")
+    flac_stream0 = flac.stream0()
 
-def test_flac_file_should_have_tags_removed(wav):
-    flac = wav.to_flac()
+    assert flac_stream0["sample_fmt"] == "s16"
+    assert flac_stream0["sample_rate"] == "44100"
+
     original_md5 = flac.to_raw_wav().md5()
 
     with_tags = flac.with_tags(
@@ -231,11 +249,41 @@ def test_flac_file_should_have_tags_removed(wav):
     assert original_tags["album"] == "sonosify-album"
 
     result = sonosify(with_tags)
+    result_stream0 = result.stream0()
 
+    assert result_stream0["sample_fmt"] == "s16"
+    assert result_stream0["sample_rate"] == "44100"
     assert result.to_raw_wav().md5() == original_md5
 
     new_tags = result.tags()
+    assert len(new_tags) == 1
     assert "artist" not in new_tags
     assert "title" not in new_tags
     assert "track" not in new_tags
     assert "album" not in new_tags
+
+
+@pytest.mark.parametrize(
+    "in_bits,in_freq,expected_bits,expected_freq", 
+    [
+        ("s16", "44100", "s16", "44100"), 
+        ("s16", "96000", "s16", "48000"), 
+    ]
+)
+def test_flac_is_downsampled(in_bits, in_freq, expected_bits, expected_freq, wav):
+    flac = wav.to_flac(aformat="{}:{}".format(in_bits, in_freq)).with_tags()
+    flac_stream0 = flac.stream0()
+
+    assert flac_stream0["sample_fmt"] == in_bits
+    assert flac_stream0["sample_rate"] == in_freq
+    assert len(flac.tags()) > 1
+
+    result = sonosify(flac)
+    result_stream0 = result.stream0()
+
+    assert result_stream0["sample_fmt"] == expected_bits
+    assert result_stream0["sample_rate"] == expected_freq
+
+    assert len(result.tags()) == 1
+
+
