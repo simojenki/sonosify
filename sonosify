@@ -14,4 +14,27 @@ O=$2
     echo "Input file $I does not exist" >&2 && \
     exit 1
 
-ffmpeg -i "${I}" -map 0:a -c:a copy -map_metadata -1 -f mp3 "${O}"
+case "${I}" in
+    *.mp3)
+        ffmpeg \
+            -i "${I}" \
+            -map 0:a \
+            -c:a copy \
+            -map_metadata -1 \
+            -f mp3 \
+            "${O}"
+    ;;
+    *.flac)
+        ffmpeg \
+            -i "${I}" \
+            -map 0:a \
+            -c:a copy \
+            -map_metadata -1 \
+            -f flac \
+            "${O}"
+    ;;
+    *)
+        echo "Unsupported file type for ${I}" >&2
+        exit 1
+    ;;
+esac

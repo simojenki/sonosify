@@ -142,6 +142,22 @@ def mp3(tmp_sounds, wav):
     return AudioFile(tmp_sounds.join(filename))
 
 
+@pytest.fixture(scope="session")
+def flac(tmp_sounds, wav):
+    filename = "sound.flac"
+    docker(
+        docker_opts="-v {sounds}:/sounds".format(sounds=tmp_sounds),
+        entrypoint="ffmpeg",
+        args="""-i /sounds/{i} \
+            -af aformat=s16:44100 \
+            /sounds/{o}""".format(
+                i=wav.path.basename, 
+                o=filename
+            )
+    )
+    return AudioFile(tmp_sounds.join(filename))
+
+
 def sonosify(i):
     new_file_name = "{name}{ext}".format(name = uuid(), ext = i.path.ext)
     run("""docker run \
@@ -164,26 +180,56 @@ def sonosify(i):
 
 
 def test_mp3_file_should_have_tags_removed(mp3):
-    original_mp3_md5 = mp3.to_raw_wav().md5()
+    original_md5 = mp3.to_raw_wav().md5()
 
-    mp3_with_tags = mp3.with_tags(
+    with_tags = mp3.with_tags(
         artist="sonosify-artist", 
         title="sonosify-title", 
         track="sonosify-track", 
         album="sonosify-album"
     )
 
-    assert mp3_with_tags.to_raw_wav().md5() == original_mp3_md5
+    assert with_tags.to_raw_wav().md5() == original_md5
 
-    original_tags = mp3_with_tags.tags()
+    original_tags = with_tags.tags()
     assert original_tags["artist"] == "sonosify-artist"
     assert original_tags["title"] == "sonosify-title"
     assert original_tags["track"] == "sonosify-track"
     assert original_tags["album"] == "sonosify-album"
 
-    result = sonosify(mp3_with_tags)
+    result = sonosify(with_tags)
 
-    assert result.to_raw_wav().md5() == original_mp3_md5
+    assert result.to_raw_wav().md5() == original_md5
+
+    new_tags = result.tags()
+    assert "artist" not in new_tags
+    assert "title" not in new_tags
+    assert "track" not in new_tags
+    assert "album" not in new_tags
+
+
+
+def test_flac_file_should_have_tags_removed(flac):
+    original_md5 = flac.to_raw_wav().md5()
+
+    with_tags = flac.with_tags(
+        artist="sonosify-artist", 
+        title="sonosify-title", 
+        track="sonosify-track", 
+        album="sonosify-album"
+    )
+
+    assert with_tags.to_raw_wav().md5() == original_md5
+
+    original_tags = with_tags.tags()
+    assert original_tags["artist"] == "sonosify-artist"
+    assert original_tags["title"] == "sonosify-title"
+    assert original_tags["track"] == "sonosify-track"
+    assert original_tags["album"] == "sonosify-album"
+
+    result = sonosify(with_tags)
+
+    assert result.to_raw_wav().md5() == original_md5
 
     new_tags = result.tags()
     assert "artist" not in new_tags
