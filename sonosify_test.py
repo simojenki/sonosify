@@ -6,6 +6,29 @@ import hashlib
 from uuid import uuid4 as uuid
 
 SONOSIFY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sonosify')
+DEFAULT_IMAGE="deluan/navidrome:latest"
+
+def docker(
+    image=DEFAULT_IMAGE,
+    docker_opts="",
+    entrypoint="", 
+    args=""
+):
+    return run("""docker run \
+        --rm \
+        {docker_opts} \
+        -u {uid}:{gid} \
+        --entrypoint {entrypoint} \
+        {image} \
+            {args}""".format(
+                docker_opts=docker_opts,
+                uid=os.getuid(),
+                gid=os.getgid(),
+                image=image,
+                entrypoint=entrypoint,
+                args=args
+            )
+        )
 
 class AudioFile:
     def __init__(self, path):
@@ -18,52 +41,39 @@ class AudioFile:
 
 
     def tags(self):
-        out = run("""docker run \
-            --rm \
-            -v {sounds}:/sounds \
-            -u {uid}:{gid} \
-            --entrypoint ffprobe \
-            deluan/navidrome:latest \
-                -show_format \
-                -print_format json \
-                /sounds/{i}""".format(
-                    sounds=self.path.dirname,
-                    uid=os.getuid(),
-                    gid=os.getgid(),
-                    i=self.path.basename
-                ))
+        out = docker(
+            docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
+            entrypoint="ffprobe",
+            args="""-show_format \
+                    -print_format json \
+                    /sounds/{i}""".format(
+                        i=self.path.basename
+                    )
+            )
         return json.loads(out)["format"]["tags"]
 
     
     def to_raw_wav(self):
         new_file_name = "{name}{ext}".format(name = self.path.basename, ext = ".wav")
-        run("""docker run \
-            --rm \
-            -v {sounds}:/sounds \
-            -u {uid}:{gid} \
-            --entrypoint ffmpeg \
-            deluan/navidrome:latest \
-                -i /sounds/{i} \
-                -map_metadata -1 \
-                /sounds/{o}""".format(
-                    sounds=self.path.dirname, 
-                    uid=os.getuid(),
-                    gid=os.getgid(),
-                    i=self.path.basename,
-                    o=new_file_name,
-                ))
+        docker(
+            docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
+            entrypoint="ffmpeg",
+            args="""-i /sounds/{i} \
+                    -map_metadata -1 \
+                    /sounds/{o}""".format(
+                        i=self.path.basename,
+                        o=new_file_name,
+                    )
+        )
         return AudioFile(self.path.dirpath(new_file_name)) 
 
 
     def with_tags(self, artist="", title="", track="", album=""):
         new_file_name = "{name}{ext}".format(name = uuid(), ext = self.path.ext)
-        run("""docker run \
-            --rm \
-            -v {sounds}:/sounds \
-            -u {uid}:{gid} \
-            --entrypoint ffmpeg \
-            deluan/navidrome:latest \
-                -i /sounds/{i} \
+        docker(
+            docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
+            entrypoint="ffmpeg",
+            args="""-i /sounds/{i} \
                 -map 0 \
                 -codec copy \
                 -write_id3v2 1 \
@@ -72,16 +82,14 @@ class AudioFile:
                 -metadata "track={track}" \
                 -metadata "album={album}" \
                 /sounds/{o}""".format(
-                    sounds=self.path.dirname, 
-                    uid=os.getuid(),
-                    gid=os.getgid(),
                     i=self.path.basename,
-                    o=new_file_name,
                     artist=artist,
                     title=title,
                     track=track,
-                    album=album
-                ))
+                    album=album,
+                    o=new_file_name
+                )
+        )
         return AudioFile(self.path.dirpath(new_file_name)) 
 
 
@@ -103,44 +111,34 @@ def tmp_sounds(tmpdir_factory):
 @pytest.fixture(scope="session")
 def wav(tmp_sounds):
     filename = "sound.wav"
-    run("""docker run \
-        --rm \
-        -v {sounds}:/sounds \
-        -u {uid}:{gid} \
-        --entrypoint ffmpeg \
-        deluan/navidrome:latest \
-            -f lavfi \
+    docker(
+        docker_opts="-v {sounds}:/sounds".format(sounds=tmp_sounds),
+        entrypoint="ffmpeg",
+        args="""-f lavfi \
             -i 'sine=frequency=1000:duration=1' \
             -ac 2 \
             /sounds/{o}""".format(
-                sounds=tmp_sounds, 
-                uid=os.getuid(),
-                gid=os.getgid(),
                 o=filename
-            ))
+            )
+    )
     return AudioFile(tmp_sounds.join(filename))
 
 
 @pytest.fixture(scope="session")
 def mp3(tmp_sounds, wav):
     filename = "sound.mp3"
-    run("""docker run \
-        --rm \
-        -v {sounds}:/sounds \
-        -u {uid}:{gid} \
-        --entrypoint ffmpeg \
-        deluan/navidrome:latest \
-            -i /sounds/{i} \
+    docker(
+        docker_opts="-v {sounds}:/sounds".format(sounds=tmp_sounds),
+        entrypoint="ffmpeg",
+        args="""-i /sounds/{i} \
             -ar 44100 \
             -ac 2 \
             -b:a 192k \
             /sounds/{o}""".format(
-                sounds=tmp_sounds, 
-                uid=os.getuid(),
-                gid=os.getgid(),
                 i=wav.path.basename, 
                 o=filename
-            ))
+            )
+    )
     return AudioFile(tmp_sounds.join(filename))
 
 
