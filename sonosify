@@ -1,5 +1,13 @@
 #!/usr/bin/env sh
 
+set -o errexit
+
+log() {
+    if [ "${SONOSIFY_LOG}" == "true" ]; then
+        echo $1 1>&2
+    fi
+}
+
 USAGE="Usage: `basename $0` input output"
 
 if [ $# -ne 2 ]; then
@@ -14,8 +22,19 @@ O=$2
     echo "Input file $I does not exist" >&2 && \
     exit 1
 
-case "${I}" in
-    *.mp3)
+streams=$(ffprobe -show_streams "${I}")
+
+stream_count=$(echo "${streams}" | grep "^index=" | wc -l)
+if [ "${stream_count}" != "1" ]; then
+    echo "Expected 1 stream in ${I}, found ${stream_count}" >&2
+    exit 1
+fi
+
+codec_name=$(echo "${streams}" | grep "^codec_name=" | cut -d = -f 2)
+
+case "${codec_name}" in
+    mp3)
+        log "sonosify mp3 -> mp3"
         ffmpeg \
             -i "${I}" \
             -map 0:a \
@@ -24,7 +43,8 @@ case "${I}" in
             -f mp3 \
             "${O}"
     ;;
-    *.flac)
+    flac)
+        log "codec flac"
         ffmpeg \
             -i "${I}" \
             -map 0:a \

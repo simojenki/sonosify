@@ -6,6 +6,7 @@ import hashlib
 from uuid import uuid4 as uuid
 
 SONOSIFY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sonosify')
+JSON_SH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'JSON.sh')
 DEFAULT_IMAGE="deluan/navidrome:latest"
 
 def docker(
@@ -53,8 +54,40 @@ class AudioFile:
         return json.loads(out)["format"]["tags"]
 
     
+    def to_mp3(self):
+        new_file_name = "{uuid}{ext}".format(uuid = uuid(), ext = ".mp3")
+        docker(
+            docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
+            entrypoint="ffmpeg",
+            args="""-i /sounds/{i} \
+                -ar 44100 \
+                -ac 2 \
+                -b:a 192k \
+                /sounds/{o}""".format(
+                    i=self.path.basename, 
+                    o=new_file_name
+                )
+        )
+        return AudioFile(self.path.dirpath(new_file_name)) 
+
+
+    def to_flac(self):
+        new_file_name = "{uuid}{ext}".format(uuid = uuid(), ext = ".mp3")
+        docker(
+            docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
+            entrypoint="ffmpeg",
+            args="""-i /sounds/{i} \
+                -af aformat=s16:44100 \
+                /sounds/{o}""".format(
+                    i=self.path.basename, 
+                    o=new_file_name
+                )
+        )
+        return AudioFile(self.path.dirpath(new_file_name)) 
+
+    
     def to_raw_wav(self):
-        new_file_name = "{name}{ext}".format(name = self.path.basename, ext = ".wav")
+        new_file_name = "{uuid}{ext}".format(uuid = uuid(), ext = ".wav")
         docker(
             docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
             entrypoint="ffmpeg",
@@ -124,38 +157,6 @@ def wav(tmp_sounds):
     return AudioFile(tmp_sounds.join(filename))
 
 
-@pytest.fixture(scope="session")
-def mp3(tmp_sounds, wav):
-    filename = "sound.mp3"
-    docker(
-        docker_opts="-v {sounds}:/sounds".format(sounds=tmp_sounds),
-        entrypoint="ffmpeg",
-        args="""-i /sounds/{i} \
-            -ar 44100 \
-            -ac 2 \
-            -b:a 192k \
-            /sounds/{o}""".format(
-                i=wav.path.basename, 
-                o=filename
-            )
-    )
-    return AudioFile(tmp_sounds.join(filename))
-
-
-@pytest.fixture(scope="session")
-def flac(tmp_sounds, wav):
-    filename = "sound.flac"
-    docker(
-        docker_opts="-v {sounds}:/sounds".format(sounds=tmp_sounds),
-        entrypoint="ffmpeg",
-        args="""-i /sounds/{i} \
-            -af aformat=s16:44100 \
-            /sounds/{o}""".format(
-                i=wav.path.basename, 
-                o=filename
-            )
-    )
-    return AudioFile(tmp_sounds.join(filename))
 
 
 def sonosify(i):
@@ -179,7 +180,8 @@ def sonosify(i):
     return AudioFile(i.path.dirpath(new_file_name)) 
 
 
-def test_mp3_file_should_have_tags_removed(mp3):
+def test_mp3_file_should_have_tags_removed(wav):
+    mp3 = wav.to_mp3()
     original_md5 = mp3.to_raw_wav().md5()
 
     with_tags = mp3.with_tags(
@@ -209,7 +211,8 @@ def test_mp3_file_should_have_tags_removed(mp3):
 
 
 
-def test_flac_file_should_have_tags_removed(flac):
+def test_flac_file_should_have_tags_removed(wav):
+    flac = wav.to_flac()
     original_md5 = flac.to_raw_wav().md5()
 
     with_tags = flac.with_tags(
