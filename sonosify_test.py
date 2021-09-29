@@ -264,24 +264,33 @@ def test_44k_flac_file_should_have_tags_removed(wav):
 
 
 @pytest.mark.parametrize(
-    "in_bits,in_freq,bits_per_raw_sample,expected_bits,expected_freq,expected_bits_per_raw_sample", 
+    "in_bits,in_freq,bits_per_raw_sample,expected_bits,expected_freq,expected_bits_per_raw_sample,expected_stream_hash_match", 
     [
-        ("s16", "44100",  "16", "s16", "44100", "16"), 
-        ("s16", "48000",  "16", "s16", "48000", "16"), 
-        ("s16", "88200",  "16", "s16", "44100", "16"), 
-        ("s16", "96000",  "16", "s16", "48000", "16"), 
-        ("s16", "176400", "16", "s16", "44100", "16"), 
-        ("s16", "192000", "16", "s16", "48000", "16"), 
+        ("s16", "44100",  "16", "s16", "44100", "16", True), 
+        ("s16", "48000",  "16", "s16", "48000", "16", True), 
+        ("s16", "88200",  "16", "s16", "44100", "16", False), 
+        ("s16", "96000",  "16", "s16", "48000", "16", False), 
+        ("s16", "176400", "16", "s16", "44100", "16", False), 
+        ("s16", "192000", "16", "s16", "48000", "16", False), 
 
-        ("s32", "44100",  "24", "s32", "44100", "24"), 
-        ("s32", "48000",  "24", "s32", "48000", "24"), 
-        ("s32", "88200",  "24", "s32", "44100", "24"), 
-        ("s32", "96000",  "24", "s32", "48000", "24"), 
-        ("s32", "176400", "24", "s32", "44100", "24"), 
-        ("s32", "192000", "24", "s32", "48000", "24"), 
+        ("s32", "44100",  "24", "s32", "44100", "24", True), 
+        ("s32", "48000",  "24", "s32", "48000", "24", True), 
+        ("s32", "88200",  "24", "s32", "44100", "24", False), 
+        ("s32", "96000",  "24", "s32", "48000", "24", False), 
+        ("s32", "176400", "24", "s32", "44100", "24", False), 
+        ("s32", "192000", "24", "s32", "48000", "24", False), 
     ]
 )
-def test_flac_is_downsampled(in_bits, in_freq, bits_per_raw_sample, expected_bits, expected_freq, expected_bits_per_raw_sample, wav):
+def test_flac_is_downsampled(
+    in_bits, 
+    in_freq, 
+    bits_per_raw_sample, 
+    expected_bits, 
+    expected_freq, 
+    expected_bits_per_raw_sample, 
+    expected_stream_hash_match, 
+    wav
+):
     flac = wav.to_flac(in_bits, in_freq).with_tags()
     flac_stream0 = flac.stream0()
 
@@ -298,5 +307,8 @@ def test_flac_is_downsampled(in_bits, in_freq, bits_per_raw_sample, expected_bit
     assert result_stream0["bits_per_raw_sample"] == expected_bits_per_raw_sample
 
     assert len(result.tags()) == 1
+
+    if(expected_stream_hash_match):
+        assert result.stream_md5() == flac.stream_md5()
 
 
