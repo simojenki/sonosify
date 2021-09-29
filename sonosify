@@ -50,9 +50,9 @@ case "${codec_name}" in
         out_fmt="${sample_fmt}"
         out_rate="44100"
         case "${sample_rate}" in
-            96000)
-                out_rate="48000"
-            ;;
+            96000)  out_rate="48000";;
+            192000) out_rate="48000";;
+            *) out_rate="${sample_rate}";;
         esac
 
         log "codec flac@${sample_fmt}:${sample_rate} -> flac@${out_fmt}:${out_rate}"

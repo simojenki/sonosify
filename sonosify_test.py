@@ -266,8 +266,10 @@ def test_44k_flac_file_should_have_tags_removed(wav):
 @pytest.mark.parametrize(
     "in_bits,in_freq,expected_bits,expected_freq", 
     [
-        ("s16", "44100", "s16", "44100"), 
-        ("s16", "96000", "s16", "48000"), 
+        ("s16", "44100",  "s16", "44100"), 
+        ("s16", "48000",  "s16", "48000"), 
+        ("s16", "96000",  "s16", "48000"), 
+        ("s16", "192000", "s16", "48000"), 
     ]
 )
 def test_flac_is_downsampled(in_bits, in_freq, expected_bits, expected_freq, wav):
