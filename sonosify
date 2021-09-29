@@ -41,7 +41,7 @@ case "${codec_name}" in
             -c:a copy \
             -map_metadata -1 \
             -f mp3 \
-            "${O}"
+            "${O}" 2>/dev/null
     ;;
     flac)
         sample_fmt=$(echo "${stream0}" | grep "^sample_fmt=" | cut -d = -f 2)
@@ -59,10 +59,10 @@ case "${codec_name}" in
 
         ffmpeg \
             -i "${I}" \
-            -af "aformat=${out_fmt}:${out_rate}" \
+            -af "aresample=resampler=soxr:out_sample_fmt=${out_fmt}:out_sample_rate=${out_rate}" \
             -map_metadata -1 \
             -f flac \
-            "${O}"
+            "${O}" 2>/dev/null
     ;;
     *)
         echo "Unsupported file type for ${I}" >&2
