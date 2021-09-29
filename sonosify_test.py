@@ -85,16 +85,18 @@ class AudioFile:
         return AudioFile(self.path.dirpath(new_file_name)) 
 
 
-    def to_flac(self, aformat="s16:44100"):
+    def to_flac(self, sample_fmt="s16", sample_rate="44100"):
         new_file_name = "{uuid}{ext}".format(uuid=uuid(), ext=".flac")
         docker(
             docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
             entrypoint="ffmpeg",
             args="""-i /sounds/{i} \
-                -af aformat={aformat} \
+                -af 'aresample=resampler=soxr:out_sample_fmt={sample_fmt}:out_sample_rate={sample_rate}' \
+                -f flac \
                 /sounds/{o}""".format(
                     i=self.path.basename, 
-                    aformat=aformat,
+                    sample_fmt=sample_fmt,
+                    sample_rate=sample_rate,
                     o=new_file_name
                 )
         )
@@ -225,7 +227,7 @@ def test_mp3_file_should_have_tags_removed(wav):
 
 
 def test_44k_flac_file_should_have_tags_removed(wav):
-    flac = wav.to_flac(aformat="s16:44100")
+    flac = wav.to_flac()
     flac_stream0 = flac.stream0()
 
     assert flac_stream0["sample_fmt"] == "s16"
@@ -264,20 +266,23 @@ def test_44k_flac_file_should_have_tags_removed(wav):
 
 
 @pytest.mark.parametrize(
-    "in_bits,in_freq,expected_bits,expected_freq", 
+    "in_bits,in_freq,bits_per_raw_sample,expected_bits,expected_freq,expected_bits_per_raw_sample", 
     [
-        ("s16", "44100",  "s16", "44100"), 
-        ("s16", "48000",  "s16", "48000"), 
-        ("s16", "96000",  "s16", "48000"), 
-        ("s16", "192000", "s16", "48000"), 
+        ("s16", "44100",  "16", "s16", "44100", "16"), 
+        ("s16", "48000",  "16", "s16", "48000", "16"), 
+        ("s16", "88200",  "16", "s16", "44100", "16"), 
+        ("s16", "96000",  "16", "s16", "48000", "16"), 
+        ("s16", "176400", "16", "s16", "44100", "16"), 
+        ("s16", "192000", "16", "s16", "48000", "16"), 
     ]
 )
-def test_flac_is_downsampled(in_bits, in_freq, expected_bits, expected_freq, wav):
-    flac = wav.to_flac(aformat="{}:{}".format(in_bits, in_freq)).with_tags()
+def test_flac_is_downsampled(in_bits, in_freq, bits_per_raw_sample, expected_bits, expected_freq, expected_bits_per_raw_sample, wav):
+    flac = wav.to_flac(in_bits, in_freq).with_tags()
     flac_stream0 = flac.stream0()
 
     assert flac_stream0["sample_fmt"] == in_bits
     assert flac_stream0["sample_rate"] == in_freq
+    assert flac_stream0["bits_per_raw_sample"] == bits_per_raw_sample
     assert len(flac.tags()) > 1
 
     result = sonosify(flac)
@@ -285,6 +290,7 @@ def test_flac_is_downsampled(in_bits, in_freq, expected_bits, expected_freq, wav
 
     assert result_stream0["sample_fmt"] == expected_bits
     assert result_stream0["sample_rate"] == expected_freq
+    assert result_stream0["bits_per_raw_sample"] == expected_bits_per_raw_sample
 
     assert len(result.tags()) == 1
 

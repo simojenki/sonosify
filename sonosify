@@ -47,19 +47,22 @@ case "${codec_name}" in
         sample_fmt=$(echo "${stream0}" | grep "^sample_fmt=" | cut -d = -f 2)
         sample_rate=$(echo "${stream0}" | grep "^sample_rate=" | cut -d = -f 2)
 
-        out_fmt="${sample_fmt}"
-        out_rate="44100"
+        out_sample_fmt="${sample_fmt}"
+
+        # flac sample rates -> https://tools.ietf.org/id/draft-xiph-cellar-flac-00.html#rfc.section.10.19.4
         case "${sample_rate}" in
-            96000)  out_rate="48000";;
-            192000) out_rate="48000";;
-            *) out_rate="${sample_rate}";;
+            88200)  out_sample_rate="44100";;
+            96000)  out_sample_rate="48000";;
+            176400) out_sample_rate="44100";;
+            192000) out_sample_rate="48000";;
+            *)      out_sample_rate="${sample_rate}";;
         esac
 
-        log "codec flac@${sample_fmt}:${sample_rate} -> flac@${out_fmt}:${out_rate}"
+        log "codec flac@${sample_fmt}:${sample_rate} -> flac@${out_sample_fmt}:${out_sample_rate}"
 
         ffmpeg \
             -i "${I}" \
-            -af "aresample=resampler=soxr:out_sample_fmt=${out_fmt}:out_sample_rate=${out_rate}" \
+            -af "aresample=resampler=soxr:out_sample_fmt=${out_sample_fmt}:out_sample_rate=${out_sample_rate}" \
             -map_metadata -1 \
             -f flac \
             "${O}" 2>/dev/null
