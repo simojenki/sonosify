@@ -3,6 +3,7 @@ import subprocess
 import json
 import os
 import hashlib
+import re
 from uuid import uuid4 as uuid
 
 SONOSIFY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sonosify')
@@ -37,8 +38,20 @@ class AudioFile:
         self.path = path
 
 
-    def md5(self):
-        return hashlib.md5(open(self.path,'rb').read()).hexdigest()
+    def stream_md5(self):
+        out = docker(
+            docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
+            entrypoint="ffmpeg",
+            args="""-i /sounds/{i} \
+                -f hash \
+                -hash md5 \
+                -""".format(
+                    i=self.path.basename
+                )
+            )
+        if not bool(re.compile(r'MD5=\w+').match(out)):
+            raise Exception("Expected md5 for stream, got '{}'".format(out))
+        return out.strip()
 
 
     def tags(self):
@@ -102,22 +115,7 @@ class AudioFile:
         )
         return AudioFile(self.path.dirpath(new_file_name)) 
 
-    
-    def to_raw_wav(self):
-        new_file_name = "{uuid}{ext}".format(uuid=uuid(), ext=".wav")
-        docker(
-            docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
-            entrypoint="ffmpeg",
-            args="""-i /sounds/{i} \
-                    -map_metadata -1 \
-                    /sounds/{o}""".format(
-                        i=self.path.basename,
-                        o=new_file_name,
-                    )
-        )
-        return AudioFile(self.path.dirpath(new_file_name)) 
-
-
+  
     def with_tags(self, artist="some-artist", title="some-title", track="some-track", album="some-album"):
         new_file_name = "{name}{ext}".format(name = uuid(), ext = self.path.ext)
         docker(
@@ -197,7 +195,7 @@ def sonosify(i):
 
 def test_mp3_file_should_have_tags_removed(wav):
     mp3 = wav.to_mp3()
-    original_md5 = mp3.to_raw_wav().md5()
+    original_md5 = mp3.stream_md5()
 
     with_tags = mp3.with_tags(
         artist="sonosify-artist", 
@@ -206,7 +204,7 @@ def test_mp3_file_should_have_tags_removed(wav):
         album="sonosify-album"
     )
 
-    assert with_tags.to_raw_wav().md5() == original_md5
+    assert with_tags.stream_md5() == original_md5
 
     original_tags = with_tags.tags()
     assert original_tags["artist"] == "sonosify-artist"
@@ -216,7 +214,7 @@ def test_mp3_file_should_have_tags_removed(wav):
 
     result = sonosify(with_tags)
 
-    assert result.to_raw_wav().md5() == original_md5
+    assert result.stream_md5() == original_md5
 
     new_tags = result.tags()
     assert len(new_tags) == 1
@@ -233,7 +231,7 @@ def test_44k_flac_file_should_have_tags_removed(wav):
     assert flac_stream0["sample_fmt"] == "s16"
     assert flac_stream0["sample_rate"] == "44100"
 
-    original_md5 = flac.to_raw_wav().md5()
+    original_md5 = flac.stream_md5()
 
     with_tags = flac.with_tags(
         artist="sonosify-artist", 
@@ -242,7 +240,7 @@ def test_44k_flac_file_should_have_tags_removed(wav):
         album="sonosify-album"
     )
 
-    assert with_tags.to_raw_wav().md5() == original_md5
+    assert with_tags.stream_md5() == original_md5
 
     original_tags = with_tags.tags()
     assert original_tags["artist"] == "sonosify-artist"
@@ -255,7 +253,7 @@ def test_44k_flac_file_should_have_tags_removed(wav):
 
     assert result_stream0["sample_fmt"] == "s16"
     assert result_stream0["sample_rate"] == "44100"
-    assert result.to_raw_wav().md5() == original_md5
+    assert result.stream_md5() == original_md5
 
     new_tags = result.tags()
     assert len(new_tags) == 1
