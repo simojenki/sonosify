@@ -18,11 +18,11 @@ fi
 I=$1
 O=$2
 
-[ ! -e $I ] && \
-    echo "Input file $I does not exist" >&2 && \
+[ ! -e "${I}" ] && \
+    echo "Input file ${I} does not exist" >&2 && \
     exit 1
 
-stream0=$(ffprobe -select_streams 0 -show_streams "${I}")
+stream0=$(ffprobe -select_streams 0 -show_streams "${I}" 2>/dev/null)
 
 codec_type=$(echo "${stream0}" | grep "^codec_type=" | cut -d = -f 2)
 if [ "${codec_type}" != "audio" ]; then
@@ -31,10 +31,12 @@ if [ "${codec_type}" != "audio" ]; then
 fi
 
 codec_name=$(echo "${stream0}" | grep "^codec_name=" | cut -d = -f 2)
+sample_fmt=$(echo "${stream0}" | grep "^sample_fmt=" | cut -d = -f 2)
+sample_rate=$(echo "${stream0}" | grep "^sample_rate=" | cut -d = -f 2)
 
 case "${codec_name}" in
     mp3)
-        log "sonosify mp3 -> mp3"
+        log "sonosify: mp3@${sample_fmt}:${sample_rate} -> mp3@${sample_fmt}:${sample_rate}"
         ffmpeg \
             -i "${I}" \
             -map 0:a \
@@ -44,9 +46,6 @@ case "${codec_name}" in
             "${O}" 2>/dev/null
     ;;
     flac)
-        sample_fmt=$(echo "${stream0}" | grep "^sample_fmt=" | cut -d = -f 2)
-        sample_rate=$(echo "${stream0}" | grep "^sample_rate=" | cut -d = -f 2)
-
         out_sample_fmt="${sample_fmt}"
 
         # flac sample rates -> https://tools.ietf.org/id/draft-xiph-cellar-flac-00.html#rfc.section.10.19.4
@@ -58,7 +57,25 @@ case "${codec_name}" in
             *)      out_sample_rate="${sample_rate}";;
         esac
 
-        log "codec flac@${sample_fmt}:${sample_rate} -> flac@${out_sample_fmt}:${out_sample_rate}"
+        log "sonosify: flac@${sample_fmt}:${sample_rate} -> flac@${out_sample_fmt}:${out_sample_rate}"
+
+        ffmpeg \
+            -i "${I}" \
+            -af "aresample=resampler=soxr:out_sample_fmt=${out_sample_fmt}:out_sample_rate=${out_sample_rate}" \
+            -map_metadata -1 \
+            -f flac \
+            "${O}" 2>/dev/null
+    ;;
+    alac)
+        out_sample_fmt="${sample_fmt}"
+
+        case "${sample_rate}" in
+            88200)  out_sample_rate="44100";;
+            96000)  out_sample_rate="48000";;
+            *)      out_sample_rate="${sample_rate}";;
+        esac
+
+        log "sonosify: alac@${sample_fmt}:${sample_rate} -> flac@${out_sample_fmt}:${out_sample_rate}"
 
         ffmpeg \
             -i "${I}" \
@@ -68,7 +85,7 @@ case "${codec_name}" in
             "${O}" 2>/dev/null
     ;;
     *)
-        echo "Unsupported file type for ${I}" >&2
+        echo "File ${I} has an unsupported codec ${codec_name}" >&2
         exit 1
     ;;
 esac
