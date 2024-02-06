@@ -43,7 +43,7 @@ case "${codec_name}" in
             -c:a copy \
             -map_metadata -1 \
             -f mp3 \
-            "${O}" 2>/dev/null
+            "${O}"
     ;;
     flac)
         out_sample_fmt="${sample_fmt}"
@@ -64,7 +64,7 @@ case "${codec_name}" in
             -af "aresample=resampler=soxr:out_sample_fmt=${out_sample_fmt}:out_sample_rate=${out_sample_rate}" \
             -map_metadata -1 \
             -f flac \
-            "${O}" 2>/dev/null
+            "${O}"
     ;;
     alac)
         out_sample_fmt="${sample_fmt}"
@@ -82,10 +82,19 @@ case "${codec_name}" in
             -af "aresample=resampler=soxr:out_sample_fmt=${out_sample_fmt}:out_sample_rate=${out_sample_rate}" \
             -map_metadata -1 \
             -f flac \
-            "${O}" 2>/dev/null
+            "${O}"
+    ;;
+    aac)
+        log "sonosify: aac -> flac"
+
+        ffmpeg \
+            -i "${I}" \
+            -map_metadata -1 \
+            -f flac \
+            "${O}"
     ;;
     *)
-        echo "File ${I} has an unsupported codec ${codec_name}" >&2
+        log "sonosify: File ${I} has an unsupported codec ${codec_name}"
         exit 1
     ;;
 esac

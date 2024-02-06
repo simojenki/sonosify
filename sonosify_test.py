@@ -116,7 +116,7 @@ class AudioFile:
         return AudioFile(self.path.dirpath(new_file_name)) 
 
 
-    def to_m4a(self):
+    def to_alac(self):
         # docker run -it -v "/tmp:/tmp" linuxserver/ffmpeg:latest -i "/tmp/01.flac" -vn -acodec alac -map_metadata -1 /tmp/01.m4a
         new_file_name = "{uuid}{ext}".format(uuid=uuid(), ext=".m4a")
         docker(
@@ -134,7 +134,23 @@ class AudioFile:
         return AudioFile(self.path.dirpath(new_file_name)) 
 
 
-    def with_tags(self, artist="some-artist", title="some-title", track="some-track", album="some-album"):
+    def to_aac(self):
+        new_file_name = "{uuid}{ext}".format(uuid=uuid(), ext=".m4a")
+        docker(
+            image="linuxserver/ffmpeg:latest",
+            docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
+            entrypoint="ffmpeg",
+            args="""-i /sounds/{i} \
+                -c:a aac \
+                /sounds/{o}""".format(
+                    i=self.path.basename, 
+                    o=new_file_name
+                )
+        )
+        return AudioFile(self.path.dirpath(new_file_name)) 
+
+
+    def with_tags(self, artist="some-artist", title="some-title", genre="some-genre", album="some-album"):
         new_file_name = "{name}{ext}".format(name = uuid(), ext = self.path.ext)
         docker(
             docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
@@ -145,13 +161,13 @@ class AudioFile:
                 -write_id3v2 1 \
                 -metadata "artist={artist}" \
                 -metadata "title={title}" \
-                -metadata "track={track}" \
+                -metadata "genre={genre}" \
                 -metadata "album={album}" \
                 /sounds/{o}""".format(
                     i=self.path.basename,
                     artist=artist,
                     title=title,
-                    track=track,
+                    genre=genre,
                     album=album,
                     o=new_file_name
                 )
@@ -165,6 +181,7 @@ def run(cmd):
         return result.stdout.decode('utf-8')
     else:
         print("Ran:{}".format(cmd))
+        print(result.stdout.decode('utf-8'))
         print(result.stderr.decode('utf-8'))
         raise Exception("Failed running command!")
 
@@ -218,7 +235,7 @@ def test_mp3_file_should_have_tags_removed(wav):
     with_tags = mp3.with_tags(
         artist="sonosify-artist", 
         title="sonosify-title", 
-        track="sonosify-track", 
+        genre="sonosify-genre", 
         album="sonosify-album"
     )
 
@@ -227,19 +244,13 @@ def test_mp3_file_should_have_tags_removed(wav):
     original_tags = with_tags.tags()
     assert original_tags["artist"] == "sonosify-artist"
     assert original_tags["title"] == "sonosify-title"
-    assert original_tags["track"] == "sonosify-track"
+    assert original_tags["genre"] == "sonosify-genre"
     assert original_tags["album"] == "sonosify-album"
 
     result = sonosify(with_tags)
 
     assert result.stream_md5() == original_md5
-
-    new_tags = result.tags()
-    assert len(new_tags) == 1
-    assert "artist" not in new_tags
-    assert "title" not in new_tags
-    assert "track" not in new_tags
-    assert "album" not in new_tags
+    assert list(result.tags().keys()) == ["encoder"]
 
 
 def test_44k_flac_file_should_have_tags_removed(wav):
@@ -254,7 +265,7 @@ def test_44k_flac_file_should_have_tags_removed(wav):
     with_tags = flac.with_tags(
         artist="sonosify-artist", 
         title="sonosify-title", 
-        track="sonosify-track", 
+        genre="sonosify-genre", 
         album="sonosify-album"
     )
 
@@ -263,22 +274,15 @@ def test_44k_flac_file_should_have_tags_removed(wav):
     original_tags = with_tags.tags()
     assert original_tags["artist"] == "sonosify-artist"
     assert original_tags["title"] == "sonosify-title"
-    assert original_tags["track"] == "sonosify-track"
+    assert original_tags["genre"] == "sonosify-genre"
     assert original_tags["album"] == "sonosify-album"
 
     result = sonosify(with_tags)
     result_stream0 = result.stream0()
-
     assert result_stream0["sample_fmt"] == "s16"
     assert result_stream0["sample_rate"] == "44100"
     assert result.stream_md5() == original_md5
-
-    new_tags = result.tags()
-    assert len(new_tags) == 1
-    assert "artist" not in new_tags
-    assert "title" not in new_tags
-    assert "track" not in new_tags
-    assert "album" not in new_tags
+    assert list(result.tags().keys()) == ["encoder"]
 
 
 @pytest.mark.parametrize(
@@ -346,7 +350,7 @@ def test_flac_is_downsampled(
         ("s32", "96000",  "24", "s32", "48000", "24", False), 
     ]
 )
-def test_m4a_is_downsampled(
+def test_alac_is_downsampled_and_converted_to_flac(
     in_bits, 
     in_freq, 
     bits_per_raw_sample, 
@@ -356,7 +360,7 @@ def test_m4a_is_downsampled(
     expected_stream_hash_match, 
     wav
 ):
-    m4a = wav.to_flac(in_bits, in_freq).with_tags().to_m4a()
+    m4a = wav.to_flac(in_bits, in_freq).with_tags().to_alac()
     m4a_stream0 = m4a.stream0()
 
     assert m4a_stream0["codec_name"] == "alac"
@@ -379,3 +383,49 @@ def test_m4a_is_downsampled(
         assert result.stream_md5() == m4a.stream_md5()
 
 
+def test_alac_m4a_has_tags_removed(wav):
+    m4a = wav.to_flac().with_tags(
+        artist="bob",
+        title="jane",
+        genre="jeff",
+        album="great stuff"
+    ).to_alac()
+
+    original_tags = m4a.tags()
+    assert original_tags["artist"] == "bob"
+    assert original_tags["title"] == "jane"
+    assert original_tags["genre"] == "jeff"
+    assert original_tags["album"] == "great stuff"
+
+    result = sonosify(m4a)
+    assert list(result.tags().keys()) == ["encoder"]
+
+
+def test_aac_is_converted_to_flac(wav):
+    aac = wav.to_aac()
+    aac_stream0 = aac.stream0()
+    assert aac_stream0["codec_name"] == "aac"
+
+    result = sonosify(aac)
+    result_stream0 = result.stream0()
+    assert result_stream0["codec_name"] == "flac"
+
+
+def test_aac_m4a_has_tags_removed(wav):
+    m4a = wav.with_tags(
+        artist="bob",
+        title="jane",
+        genre="jeff",
+        album="great stuff"
+    ).to_aac()
+
+    original_tags = m4a.tags()
+    assert original_tags["artist"] == "bob"
+    assert original_tags["title"] == "jane"
+    # assert original_tags["genre"] == "jeff"
+    assert original_tags["album"] == "great stuff"
+
+    result = sonosify(m4a)
+    assert list(result.tags().keys()) == ["encoder"]
+
+# docker run --rm -v /tmp:/sounds -v /home/simon/src/github/simojenki/sonosify/sonosify:/bin/sonosify -u 1000:1000 --entrypoint /bin/sonosify deluan/navidrome:latest /sounds/out.wav /sounds/123.m4a
