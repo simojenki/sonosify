@@ -3,8 +3,11 @@
 set -o errexit
 
 log() {
-    if [ "${SONOSIFY_LOG}" == "true" ]; then
+    if [ "${SONOSIFY_LOG_STDOUT}" == "true" ]; then
         echo $1 1>&2
+    fi
+    if [ "${SONOSIFY_LOG}" == "true" ]; then
+        echo $1 1>&2 >> /proc/1/fd/1
     fi
 }
 
