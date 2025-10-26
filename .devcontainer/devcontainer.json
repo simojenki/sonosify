@@ -1,0 +1,20 @@
+{
+    "name": "sonosify",
+    "build": { 
+        "dockerfile": "Dockerfile" 
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2.12": {
+            "version": "latest",
+            "moby": true
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "redhat.vscode-xml"
+            ]
+        }
+    }
+}
