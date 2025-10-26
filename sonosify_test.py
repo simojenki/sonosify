@@ -207,13 +207,16 @@ def wav(tmp_sounds):
     return AudioFile(tmp_sounds.join(filename))
 
 
-def sonosify(i):
+def sonosify(i, target=""):
     new_file_name = "{name}{ext}".format(name = uuid(), ext = i.path.ext)
-    run("""docker run \
+    print(run("""docker run \
         --rm \
+        -t \
         -v {sounds}:/sounds \
         -v {sonosify}:/bin/sonosify \
         -u {uid}:{gid} \
+        -e SONOSIFY_LOG=true \
+        -e SONOSIFY_TARGET={target} \
         --entrypoint /bin/sonosify \
         deluan/navidrome:latest \
             /sounds/{i} \
@@ -223,8 +226,9 @@ def sonosify(i):
                 uid=os.getuid(),
                 gid=os.getgid(),
                 i=i.path.basename,
-                o=new_file_name
-            ))
+                o=new_file_name,
+                target=target
+            )))
     return AudioFile(i.path.dirpath(new_file_name)) 
 
 
@@ -286,24 +290,39 @@ def test_44k_flac_file_should_have_tags_removed(wav):
 
 
 @pytest.mark.parametrize(
-    "in_bits,in_freq,bits_per_raw_sample,expected_bits,expected_freq,expected_bits_per_raw_sample,expected_stream_hash_match", 
+    "target,in_bits,in_freq,bits_per_raw_sample,expected_bits,expected_freq,expected_bits_per_raw_sample,expected_stream_hash_match", 
     [
-        ("s16", "44100",  "16", "s16", "44100", "16", True), 
-        ("s16", "48000",  "16", "s16", "48000", "16", True), 
-        ("s16", "88200",  "16", "s16", "44100", "16", False), 
-        ("s16", "96000",  "16", "s16", "48000", "16", False), 
-        ("s16", "176400", "16", "s16", "44100", "16", False), 
-        ("s16", "192000", "16", "s16", "48000", "16", False), 
+        (None, "s16", "44100",  "16", "s16", "44100", "16", True), 
+        (None, "s16", "48000",  "16", "s16", "48000", "16", True), 
+        (None, "s16", "88200",  "16", "s16", "44100", "16", False), 
+        (None, "s16", "96000",  "16", "s16", "48000", "16", False), 
+        (None, "s16", "176400", "16", "s16", "44100", "16", False), 
+        (None, "s16", "192000", "16", "s16", "48000", "16", False), 
 
-        ("s32", "44100",  "24", "s32", "44100", "24", True), 
-        ("s32", "48000",  "24", "s32", "48000", "24", True), 
-        ("s32", "88200",  "24", "s32", "44100", "24", False), 
-        ("s32", "96000",  "24", "s32", "48000", "24", False), 
-        ("s32", "176400", "24", "s32", "44100", "24", False), 
-        ("s32", "192000", "24", "s32", "48000", "24", False), 
+        (None, "s32", "44100",  "24", "s32", "44100", "24", True), 
+        (None, "s32", "48000",  "24", "s32", "48000", "24", True), 
+        (None, "s32", "88200",  "24", "s32", "44100", "24", False), 
+        (None, "s32", "96000",  "24", "s32", "48000", "24", False), 
+        (None, "s32", "176400", "24", "s32", "44100", "24", False), 
+        (None, "s32", "192000", "24", "s32", "48000", "24", False), 
+
+        ("S1", "s16", "44100",  "16", "s16", "44100", "16", True), 
+        ("S1", "s16", "48000",  "16", "s16", "48000", "16", True), 
+        ("S1", "s16", "88200",  "16", "s16", "44100", "16", False), 
+        ("S1", "s16", "96000",  "16", "s16", "48000", "16", False), 
+        ("S1", "s16", "176400", "16", "s16", "44100", "16", False), 
+        ("S1", "s16", "192000", "16", "s16", "48000", "16", False), 
+
+        ("S1", "s32", "44100",  "24", "s16", "44100", "16", False), 
+        ("S1", "s32", "48000",  "24", "s16", "48000", "16", False), 
+        ("S1", "s32", "88200",  "24", "s16", "44100", "16", False), 
+        ("S1", "s32", "96000",  "24", "s16", "48000", "16", False), 
+        ("S1", "s32", "176400", "24", "s16", "44100", "16", False), 
+        ("S1", "s32", "192000", "24", "s16", "48000", "16", False), 
     ]
 )
 def test_flac_is_downsampled(
+    target,
     in_bits, 
     in_freq, 
     bits_per_raw_sample, 
@@ -322,7 +341,10 @@ def test_flac_is_downsampled(
     assert flac_stream0["bits_per_raw_sample"] == bits_per_raw_sample
     assert len(flac.tags()) > 1
 
-    result = sonosify(flac)
+    result = sonosify(
+        flac,
+        target=target
+    )
     result_stream0 = result.stream0()
 
     assert result_stream0["codec_name"] == "flac"
@@ -337,20 +359,31 @@ def test_flac_is_downsampled(
 
 
 @pytest.mark.parametrize(
-    "in_bits,in_freq,bits_per_raw_sample,expected_bits,expected_freq,expected_bits_per_raw_sample,expected_stream_hash_match", 
+    "target,in_bits,in_freq,bits_per_raw_sample,expected_bits,expected_freq,expected_bits_per_raw_sample,expected_stream_hash_match", 
     [
-        ("s16", "44100",  "16", "s16", "44100", "16", True), 
-        ("s16", "48000",  "16", "s16", "48000", "16", True), 
-        ("s16", "88200",  "16", "s16", "44100", "16", False), 
-        ("s16", "96000",  "16", "s16", "48000", "16", False), 
+        (None, "s16", "44100",  "16", "s16", "44100", "16", True), 
+        (None, "s16", "48000",  "16", "s16", "48000", "16", True), 
+        (None, "s16", "88200",  "16", "s16", "44100", "16", False), 
+        (None, "s16", "96000",  "16", "s16", "48000", "16", False), 
 
-        ("s32", "44100",  "24", "s32", "44100", "24", True), 
-        ("s32", "48000",  "24", "s32", "48000", "24", True), 
-        ("s32", "88200",  "24", "s32", "44100", "24", False), 
-        ("s32", "96000",  "24", "s32", "48000", "24", False), 
+        (None, "s32", "44100",  "24", "s32", "44100", "24", True), 
+        (None, "s32", "48000",  "24", "s32", "48000", "24", True), 
+        (None, "s32", "88200",  "24", "s32", "44100", "24", False), 
+        (None, "s32", "96000",  "24", "s32", "48000", "24", False), 
+
+        ("S1", "s16", "44100",  "16", "s16", "44100", "16", True), 
+        ("S1", "s16", "48000",  "16", "s16", "48000", "16", True), 
+        ("S1", "s16", "88200",  "16", "s16", "44100", "16", False), 
+        ("S1", "s16", "96000",  "16", "s16", "48000", "16", False), 
+
+        ("S1", "s32", "44100",  "24", "s16", "44100", "16", False), 
+        ("S1", "s32", "48000",  "24", "s16", "48000", "16", False), 
+        ("S1", "s32", "88200",  "24", "s16", "44100", "16", False), 
+        ("S1", "s32", "96000",  "24", "s16", "48000", "16", False), 
     ]
 )
 def test_alac_is_downsampled_and_converted_to_flac(
+    target,
     in_bits, 
     in_freq, 
     bits_per_raw_sample, 
@@ -369,7 +402,10 @@ def test_alac_is_downsampled_and_converted_to_flac(
     assert m4a_stream0["bits_per_raw_sample"] == bits_per_raw_sample
     assert len(m4a.tags()) > 1
 
-    result = sonosify(m4a)
+    result = sonosify(
+        m4a,
+        target=target
+    )
     result_stream0 = result.stream0()
 
     assert result_stream0["codec_name"] == "flac"

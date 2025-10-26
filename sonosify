@@ -15,6 +15,7 @@ if [ $# -ne 2 ]; then
     exit 1
 fi
 
+SONOSIFY_TARGET="${SONOSIFY_TARGET:-}"
 I=$1
 O=$2
 
@@ -46,9 +47,13 @@ case "${codec_name}" in
             "${O}"
     ;;
     flac)
-        out_sample_fmt="${sample_fmt}"
+        if [ "${SONOSIFY_TARGET}" == "S1" ]; then
+            out_sample_fmt="s16"
+        else
+            out_sample_fmt="${sample_fmt}"
+        fi
 
-        # flac sample rates -> https://tools.ietf.org/id/draft-xiph-cellar-flac-00.html#rfc.section.10.19.4
+        # flac sample rates -> https://datatracker.ietf.org/doc/html/draft-xiph-cellar-flac-00#section-10.19.4
         case "${sample_rate}" in
             88200)  out_sample_rate="44100";;
             96000)  out_sample_rate="48000";;
@@ -67,7 +72,11 @@ case "${codec_name}" in
             "${O}"
     ;;
     alac)
-        out_sample_fmt="${sample_fmt}"
+        if [ "${SONOSIFY_TARGET}" == "S1" ]; then
+            out_sample_fmt="s16"
+        else
+            out_sample_fmt="${sample_fmt}"
+        fi
 
         case "${sample_rate}" in
             88200)  out_sample_rate="44100";;
