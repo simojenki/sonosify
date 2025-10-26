@@ -43,6 +43,7 @@ case "${codec_name}" in
             -map 0:a \
             -c:a copy \
             -map_metadata -1 \
+            -flush_packets 1 \
             -f mp3 \
             "${O}"
     ;;
@@ -63,11 +64,16 @@ case "${codec_name}" in
         esac
 
         log "sonosify: flac@${sample_fmt}:${sample_rate} -> flac@${out_sample_fmt}:${out_sample_rate}"
-
+        if [ "${sample_fmt}" == "${out_sample_fmt}" ] && [ "${sample_rate}" == "${out_sample_rate}" ]; then
+            af="anull"
+        else 
+            af="aresample=resampler=soxr:out_sample_fmt=${out_sample_fmt}:out_sample_rate=${out_sample_rate}:first_pts=0"
+        fi
         ffmpeg \
             -i "${I}" \
-            -af "aresample=resampler=soxr:out_sample_fmt=${out_sample_fmt}:out_sample_rate=${out_sample_rate}" \
+            -af "${af}" \
             -map_metadata -1 \
+            -flush_packets 1 \
             -f flac \
             "${O}"
     ;;
@@ -85,11 +91,16 @@ case "${codec_name}" in
         esac
 
         log "sonosify: alac@${sample_fmt}:${sample_rate} -> flac@${out_sample_fmt}:${out_sample_rate}"
-
+        if [ "${sample_fmt}" == "${out_sample_fmt}" ] && [ "${sample_rate}" == "${out_sample_rate}" ]; then
+            af="anull"
+        else 
+            af="aresample=resampler=soxr:out_sample_fmt=${out_sample_fmt}:out_sample_rate=${out_sample_rate}:first_pts=0"
+        fi
         ffmpeg \
             -i "${I}" \
-            -af "aresample=resampler=soxr:out_sample_fmt=${out_sample_fmt}:out_sample_rate=${out_sample_rate}" \
+            -af "${af}" \
             -map_metadata -1 \
+            -flush_packets 1 \
             -f flac \
             "${O}"
     ;;
@@ -99,6 +110,7 @@ case "${codec_name}" in
         ffmpeg \
             -i "${I}" \
             -map_metadata -1 \
+            -flush_packets 1 \
             -f flac \
             "${O}"
     ;;
