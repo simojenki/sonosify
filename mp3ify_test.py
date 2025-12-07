@@ -32,36 +32,6 @@ def mp3ify(i):
     return AudioFile(i.path.dirpath(new_file_name)) 
 
 
-def test_mp3_file_should_be_same_as_original_retaining_tags(wav):
-    mp3 = wav.to_mp3()
-    original_md5 = mp3.stream_md5()
-
-    with_tags = mp3.with_tags(
-        artist="artist 1", 
-        title="title 1", 
-        genre="genre 1", 
-        album="album 1"
-    )
-
-    assert with_tags.stream_md5() == original_md5
-
-    original_tags = with_tags.tags()
-    assert original_tags["artist"] == "artist 1"
-    assert original_tags["title"] == "title 1"
-    assert original_tags["genre"] == "genre 1"
-    assert original_tags["album"] == "album 1"
-
-    result = mp3ify(with_tags)
-
-    assert result.stream_md5() == original_md5
-
-    result_tags = result.tags()
-    assert result_tags["artist"] == "artist 1"
-    assert result_tags["title"] == "title 1"
-    assert result_tags["genre"] == "genre 1"
-    assert result_tags["album"] == "album 1"
-
-
 @pytest.mark.parametrize("input_type",
     [
         ("flac"), 
@@ -69,7 +39,7 @@ def test_mp3_file_should_be_same_as_original_retaining_tags(wav):
         ("aac")
     ]
 )
-def test_non_mp3_are_transcoded_to_mp3_retaining_tags(wav, input_type):
+def test_non_mp3_are_transcoded_to_mp3_removing_tags(wav, input_type):
     if input_type == "flac":
         input = wav.to_flac()
     elif input_type == "alac":
@@ -91,15 +61,58 @@ def test_non_mp3_are_transcoded_to_mp3_retaining_tags(wav, input_type):
     assert original_tags["album"] == "b1"
 
     mp3 = mp3ify(input_with_tags)
+
     result_stream0 = mp3.stream0()
 
     assert result_stream0["codec_name"] == "mp3"
     assert result_stream0["sample_fmt"] == "fltp"
     assert result_stream0["sample_rate"] == "44100"
 
-    mp3_tags = mp3.tags()
-    assert mp3_tags["artist"] == "a1"
-    assert mp3_tags["title"] == "t1"
-    assert mp3_tags["genre"] == "g1"
-    assert mp3_tags["album"] == "b1"
+    assert list(mp3.tags().keys()) == ["encoder"]
+
+
+def test_mp3_file_should_have_tags_removed(wav):
+    mp3 = wav.to_mp3()
+
+    with_tags = mp3.with_tags(
+        artist="sonosify-artist", 
+        title="sonosify-title", 
+        genre="sonosify-genre", 
+        album="sonosify-album"
+    )
+
+    original_tags = with_tags.tags()
+    assert original_tags["artist"] == "sonosify-artist"
+    assert original_tags["title"] == "sonosify-title"
+    assert original_tags["genre"] == "sonosify-genre"
+    assert original_tags["album"] == "sonosify-album"
+
+    result = mp3ify(with_tags)
+
+    assert list(result.tags().keys()) == ["encoder"]
+
+
+def test_mp3_file_should_have_same_audio_as_original_however_tags_removed(wav):
+    mp3 = wav.to_mp3()
+    original_md5 = mp3.stream_md5()
+
+    with_tags = mp3.with_tags(
+        artist="sonosify-artist", 
+        title="sonosify-title", 
+        genre="sonosify-genre", 
+        album="sonosify-album"
+    )
+
+    original_tags = with_tags.tags()
+    assert original_tags["artist"] == "sonosify-artist"
+    assert original_tags["title"] == "sonosify-title"
+    assert original_tags["genre"] == "sonosify-genre"
+    assert original_tags["album"] == "sonosify-album"
+
+    result = mp3ify(with_tags)
+
+    assert result.stream_md5() == original_md5
+
+    assert list(result.tags().keys()) == ["encoder"]
+
 
