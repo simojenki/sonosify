@@ -56,6 +56,7 @@ case "${codec_name}" in
             -af aresample=resampler=soxr:precision=28 \
             -codec:a libmp3lame \
             -q:a 0 \
+            -frame_duration 10 \
             -map_metadata -1 \
             -flush_packets 1 \
             -f mp3 \
