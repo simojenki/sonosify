@@ -6,7 +6,7 @@ import hashlib
 import re
 from uuid import uuid4 as uuid
 
-DEFAULT_IMAGE="deluan/navidrome:latest"
+DEFAULT_IMAGE="linuxserver/ffmpeg:latest"
 
 def docker(
     image=DEFAULT_IMAGE,
@@ -114,7 +114,7 @@ class AudioFile:
             docker_opts="-v {sounds}:/sounds".format(sounds=self.path.dirname),
             entrypoint="ffmpeg",
             args="""-i /sounds/{i} \
-                -af 'aresample=resampler=soxr:out_sample_fmt={sample_fmt}:out_sample_rate={sample_rate}' \
+                -af 'aresample=out_sample_fmt={sample_fmt}:out_sample_rate={sample_rate}' \
                 -f flac \
                 /sounds/{o}""".format(
                     i=self.path.basename, 

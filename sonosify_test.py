@@ -2,7 +2,7 @@ import pytest
 import os
 from uuid import uuid4 as uuid
 
-from test_utils import docker, run, AudioFile
+from test_utils import run, AudioFile, DEFAULT_IMAGE
 
 
 SONOSIFY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sonosify')
@@ -20,13 +20,14 @@ def sonosify(i, target=""):
         -e SONOSIFY_LOG=true \
         -e SONOSIFY_TARGET={target} \
         --entrypoint /bin/sonosify \
-        deluan/navidrome:latest \
+        {image} \
             /sounds/{i} \
             /sounds/{o}""".format(
                 sounds=i.path.dirname,
                 sonosify=SONOSIFY,
                 uid=os.getuid(),
                 gid=os.getgid(),
+                image=DEFAULT_IMAGE, 
                 i=i.path.basename,
                 o=new_file_name,
                 target=target

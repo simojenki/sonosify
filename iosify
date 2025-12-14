@@ -1,0 +1,69 @@
+#!/usr/bin/env sh
+
+set -o errexit
+
+log() {
+    if [ "${MP3IFY_LOG}" == "true" ]; then
+        echo $1 1>&2
+    fi
+    if [ "${MP3IFY_LOG_FD1}" == "true" ]; then
+        echo $1 1>&2 >> /proc/1/fd/1
+    fi
+}
+
+USAGE="Usage: `basename $0` input output"
+
+if [ $# -ne 2 ]; then
+    echo $USAGE >&2
+    exit 1
+fi
+
+I=$1
+O=$2
+
+[ ! -e "${I}" ] && \
+    echo "Input file ${I} does not exist" >&2 && \
+    exit 1
+
+stream0=$(ffprobe -select_streams 0 -show_streams "${I}" 2>/dev/null)
+
+codec_type=$(echo "${stream0}" | grep "^codec_type=" | cut -d = -f 2)
+if [ "${codec_type}" != "audio" ]; then
+    echo "Expected stream 0 to be audio, but is ${codec_type}" >&2
+    exit 1
+fi
+
+codec_name=$(echo "${stream0}" | grep "^codec_name=" | cut -d = -f 2)
+sample_fmt=$(echo "${stream0}" | grep "^sample_fmt=" | cut -d = -f 2)
+sample_rate=$(echo "${stream0}" | grep "^sample_rate=" | cut -d = -f 2)
+
+case "${codec_name}" in
+    mp3)
+        log "mp3ify: mp3 -> mp3"
+        ffmpeg \
+            -i "${I}" \
+            -map 0:a \
+            -c:a copy \
+            -map_metadata -1 \
+            -flush_packets 1 \
+            -f mp3 \
+            "${O}"
+    ;;
+    flac|alac|aac)
+        log "mp3ify: ${codec_name} -> mp3"
+        ffmpeg \
+            -i "${I}" \
+            -af aresample=resampler=soxr:precision=28 \
+            -codec:a libmp3lame \
+            -q:a 0 \
+            -frame_duration 10 \
+            -map_metadata -1 \
+            -flush_packets 1 \
+            -f mp3 \
+            "${O}"
+    ;;
+    *)
+        log "mp3ify: File ${I} has an unsupported codec ${codec_name}"
+        exit 1
+    ;;
+esac

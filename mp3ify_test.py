@@ -2,7 +2,7 @@ import pytest
 import os
 from uuid import uuid4 as uuid
 
-from test_utils import docker, run, AudioFile
+from test_utils import run, AudioFile, DEFAULT_IMAGE
 
 
 MP3IFY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mp3ify')
@@ -19,13 +19,14 @@ def mp3ify(i):
         -u {uid}:{gid} \
         -e MP3IFY_LOG=true \
         --entrypoint /bin/mp3ify \
-        deluan/navidrome:latest \
+        {image} \
             /sounds/{i} \
             /sounds/{o}""".format(
                 sounds=i.path.dirname,
                 mp3ify=MP3IFY,
                 uid=os.getuid(),
                 gid=os.getgid(),
+                image=DEFAULT_IMAGE,
                 i=i.path.basename,
                 o=new_file_name
             )))
